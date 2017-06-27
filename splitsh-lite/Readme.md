@@ -1,0 +1,1 @@
+# splitsh-lite amd64 from https://github.com/splitsh/lite/releases
