@@ -36,6 +36,8 @@ else
     exit 2
 fi
 
+IFS=''
+
 # Fetch list of available extensions
 EXTENSIONS=$(ls ${REPOSITORY}/${EXTENSIONDIRECTORY})
 EXTENSIONS="sys_note"
@@ -47,15 +49,27 @@ do
     git -C ${REPOSITORY} fetch --quiet package-${EXTENSION} || exit 1
 
     FOUNDCOMMITHASH="---"
+    MAINCOMMITHASHES=$(git -C ${REPOSITORY} rev-list ${COMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION})
+    MAINTREEHASHES=""
+
+    while read MAINCOMMITHASH
+    do
+        MAINTREEHASH=$(git -C ${REPOSITORY} ls-tree ${MAINCOMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION} | awk '{print $3}')
+        MAINTREEHASHES=${MAINTREEHASHES}$'\n'${MAINTREEHASH}
+    done <<< ${MAINCOMMITHASHES}
+
 
     # Iterate over commit- & tree-hashes of package
-    while read ITEMTYPE PACKAGECOMMITHASH PACKAGETREEHASH
+    while read PACKAGEDATE
     do
-        # Iterate over commit-hashes of main (TYPO3.CMS) repository
-        while read MAINCOMMITHASH
-        do
-            MAINTREEHASH=$(git -C ${REPOSITORY} ls-tree ${MAINCOMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION} | awk '{print $3}')
+        PACKAGECOMMITHASH=$(echo ${PACKAGEDATE} | awk '{print $2}')
+        PACKAGETREEHASH=$(echo ${PACKAGEDATE} | awk '{print $3}')
 
+        # echo "${PACKAGECOMMITHASH} ${PACKAGETREEHASH}"
+
+        # Iterate over commit-hashes of main (TYPO3.CMS) repository
+        while read MAINTREEHASH
+        do
             # Use closest commit-hash having both the same
             # tree-hash in the main and package repository
             if [[ "${MAINTREEHASH}" == "${PACKAGETREEHASH}" ]]
@@ -63,13 +77,13 @@ do
                 FOUNDCOMMITHASH="${PACKAGECOMMITHASH}"
                 break
             fi
-        done <<< $(git -C ${REPOSITORY} rev-list -1 ${COMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION})
+        done <<< ${MAINTREEHASHES}
 
         if [[ "${FOUNDCOMMITHASH}" != "---" ]]
         then
             break
         fi
-    done <<< $(git -C ${REPOSITORY} rev-list -1 --pretty="commit+tree %H %T" package-${EXTENSION} | grep "^commit+tree")
+    done <<< $(git -C ${REPOSITORY} rev-list --pretty="commit+tree %H %T" package-${EXTENSION} | grep "^commit+tree")
 
     case "${MODE}" in
         show)
