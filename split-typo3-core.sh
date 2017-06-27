@@ -1,24 +1,38 @@
 #!/bin/bash
 
-# Go to current dir
+# Go to current dir this script is in
 cd "$(dirname "$0")"
 
 # Create data dir if not exists
-[[ -d data ]] || mkdir data
+[[ -d data ]] || mkdir data || exit 1
+
+# Find out which split binary to use
+case "$(uname)" in
+    Darwin)
+        SPLITTER="splitsh-lite-darwin"
+        ;;
+    Linux)
+        SPLITTER="splitsh-lite-linux"
+        ;;
+    *)
+        echo 'Unknown OS'
+        exit 1
+        ;;
+esac
+
 
 BASEREMOTE=git://git.typo3.org/Packages/TYPO3.CMS.git
-BASEREPO=TYPO3.CMS
-DATADIR=data/
+REPODIR=TYPO3.CMS
 
 # Initial clone or update pull
-if [[ -d ${DATADIR}${BASEREPO} ]]; then
-    git -C ${DATADIR}${BASEREPO} pull
+if [[ -d ${REPODIR} ]]; then
+    git -C ${REPODIR} pull
 else
-    git clone $BASEREMOTE ${DATADIR}${BASEREPO}
+    git clone $BASEREMOTE ${REPODIR}
 fi
 
-# New working dir
-cd ${DATADIR}${BASEREPO} || exit 1
+# Go to repo checkout
+cd ${REPODIR} || exit 1
 
 # temp uncomment
 #EXTENSIONS=`ls typo3/sysext`
@@ -27,10 +41,10 @@ EXTENSIONS="saltedpasswords sys_note"
 for EXTENSION in ${EXTENSIONS}; do
     echo "Splitting extension ${EXTENSION}"
 
-    # Split operation itself creating commit objects and giving last SHA1 commit hash
-    SHA1=`./../../splitsh-lite/splitsh-lite --prefix=typo3/sysext/${EXTENSION}`
+    # Split operation creating commit objects and giving last SHA1 commit hash
+    SHA1=`./../${SPLITTER} --prefix=typo3/sysext/${EXTENSION}`
 
-    # Remove old branch if exists
+    # Remove old branch if exists from a previous run
     if [[ $(git branch --list split-${EXTENSION}-master | wc -l) -eq 1 ]]; then
         git branch -D split-${EXTENSION}-master;
     fi
@@ -49,6 +63,7 @@ for EXTENSION in ${EXTENSIONS}; do
     # Push to remote
     git push ${EXTENSION} split-${EXTENSION}-master:master
 
+    # Remove local branch again
     git branch -D split-${EXTENSION}-master;
 done
 
