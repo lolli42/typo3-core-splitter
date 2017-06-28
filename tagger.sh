@@ -11,32 +11,81 @@
 #
 # The TYPO3 project - inspiring people to share!
 
-REPOSITORY=.
+IFS=""
+TAG=""
+COMMIT=""
+REPOSITORY="."
 EXTENSIONDIRECTORY="typo3/sysext/"
 PACKAGESURL="/Users/olly/Development/typo3/git/work/packages/"
+BASENAME=$(basename $0)
 
-if [[ "$1" != "show" && "$1" != "execute" || "$2" == "" || "$3" == "" ]]
-then
-    echo "Usage $0 <mode> <commit> <tag> [repository]"
+function showUsage {
+    echo "${BASENAME} <mode> [options]"
+    echo "${BASENAME} show --commit <commit> [--repository <repository>]"
+    echo "${BASENAME} execute --commit <commit> --tag <tag> [--repository <repository>]"
     echo
-    echo "$0 show abcdef v9.0.0 TYPO3.CMS"
-    echo "$0 execute abcdef v9.0.0 TYPO3.CMS"
+    echo "--commit <value>      Git object to be processed in main repository"
+    echo "--tag <value>         Name of tag to be created"
+    echo "--repository <value>  URI of main repository"
     exit 1
+}
+
+if [[ $# -lt 1 ]]
+then
+    showUsage
 fi
 
 MODE=$1
-COMMITHASH=$2
-TAG=$3
+shift
 
-if [[ "$4" != "" && -d $4 ]]
+while [[ $# -gt 1 ]]
+do
+    key="$1"
+    case ${key} in
+        -c|--commit)
+            COMMIT="$2"
+            shift
+            ;;
+        -t|--tag)
+            TAG="$2"
+            shift
+            ;;
+        -r|--repository)
+            REPOSITORY="$2"
+            shift
+            ;;
+        *)
+            showUsage
+            ;;
+    esac
+    shift # past argument or value
+done
+
+case ${MODE} in
+    show)
+        if [[ "${COMMIT}" == "" ]]
+        then
+            showUsage
+        fi
+        ;;
+    execute)
+        if [[ "${COMMIT}" == "" || "${TAG}" == "" ]]
+        then
+            showUsage
+        fi
+        ;;
+    *)
+        showUsage
+        ;;
+esac
+
+git -C ${REPOSITORY} rev-list HEAD -1 --quiet
+if [[ $? -ne 0 ]]
 then
-    REPOSITORY=$4
-else
-    echo "Directory ${REPOSITORY} not found"
-    exit 2
+    echo "Directory '${REPOSITORY}' is not a GIt repository"
+    exit 1
 fi
 
-IFS=''
 
 # Fetch list of available extensions
 EXTENSIONS=$(ls ${REPOSITORY}/${EXTENSIONDIRECTORY})
@@ -49,7 +98,7 @@ do
     git -C ${REPOSITORY} fetch --quiet package-${EXTENSION} || exit 1
 
     FOUNDCOMMITHASH="---"
-    MAINCOMMITHASHES=$(git -C ${REPOSITORY} rev-list ${COMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION})
+    MAINCOMMITHASHES=$(git -C ${REPOSITORY} rev-list ${COMMIT} ${EXTENSIONDIRECTORY}${EXTENSION})
     MAINTREEHASHES=""
 
     while read MAINCOMMITHASH
@@ -110,5 +159,5 @@ fi
 for EXTENSION in ${EXTENSIONS}
 do
     # @todo Add signed tags
-    git -C ${REPOSITORY} push --quiet package-${EXTENSION} ${TAG}
+    git -C ${REPOSITORY} push package-${EXTENSION} ${TAG}
 done
