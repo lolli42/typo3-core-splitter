@@ -11,12 +11,12 @@
 #
 # The TYPO3 project - inspiring people to share!
 
-IFS=""
 TAG=""
 COMMIT=""
 REPOSITORY="."
 EXTENSIONDIRECTORY="typo3/sysext/"
-PACKAGESURL="/Users/olly/Development/typo3/git/work/packages/"
+# PACKAGESURLTEMPLATE="/Users/olly/Development/typo3/git/work/packages/%s"
+PACKAGESURLTEMPLATE="git@github.com:lolli42/%s.git"
 BASENAME=$(basename $0)
 
 function showUsage {
@@ -89,12 +89,15 @@ fi
 
 # Fetch list of available extensions
 EXTENSIONS=$(ls ${REPOSITORY}/${EXTENSIONDIRECTORY})
-EXTENSIONS="sys_note"
+EXTENSIONS="saltedpasswords"
 for EXTENSION in ${EXTENSIONS}
 do
+    IFS=""
+    PACKAGESURL=$(printf ${PACKAGESURLTEMPLATE} ${EXTENSION})
+
     # Assert remote package repositories are available
-    git -C ${REPOSITORY} remote remove package-${EXTENSION} || exit 1
-    git -C ${REPOSITORY} remote add package-${EXTENSION} ${PACKAGESURL}${EXTENSION} || exit 1
+    git -C ${REPOSITORY} remote remove package-${EXTENSION} &> /dev/null
+    git -C ${REPOSITORY} remote add package-${EXTENSION} ${PACKAGESURL} || exit 1
     git -C ${REPOSITORY} fetch --quiet package-${EXTENSION} || exit 1
 
     FOUNDCOMMITHASH="---"
@@ -132,11 +135,11 @@ do
         then
             break
         fi
-    done <<< $(git -C ${REPOSITORY} rev-list --pretty="commit+tree %H %T" package-${EXTENSION} | grep "^commit+tree")
+    done <<< $(git -C ${REPOSITORY} rev-list --remotes=package-${EXTENSION} --pretty="commit+tree %H %T" | grep "^commit+tree")
 
     case "${MODE}" in
         show)
-            printf "%-50s %s\n" ${FOUNDCOMMITHASH} ${PACKAGESURL}${EXTENSION}
+            printf "%-50s %s\n" ${FOUNDCOMMITHASH} ${PACKAGESURL}
             ;;
         execute)
             if [[ "${FOUNDCOMMITHASH}" != "---" ]]
