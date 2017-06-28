@@ -34,5 +34,5 @@ for TAG in ${TAGS}
 do
     NEWTAG=$(echo ${TAG} | sed -e 's/^v//' | sed -e 's/^/v/')
     echo "* creating tag ${TAG} -> ${NEWTAG}"
-    ${TAGGER} show --commit ${TAG} --tag ${NEWTAG} --repository ${REPOSITORY}
+    ${TAGGER} execute --commit ${TAG} --tag ${NEWTAG} --repository ${REPOSITORY}
 done

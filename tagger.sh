@@ -168,22 +168,21 @@ do
         fi
     done <<< $(git -C ${WORKREPOSITORY} rev-list --all --pretty="commit+tree %H %T" | grep "^commit+tree")
 
-    case "${MODE}" in
-        show)
-            printf "%-50s %s\n" ${FOUNDCOMMITHASH} ${PACKAGESURL}
-            ;;
-        execute)
-            # Create tag, but do not push it yet...
-            # If no hash was found, exit and avoid pushing only half of the repositories
-            if [[ "${FOUNDCOMMITHASH}" != "---" ]]
-            then
-                git -C ${WORKREPOSITORY} tag -f ${TAG} ${FOUNDCOMMITHASH}
-            else
-                echo "Could not determine matching tree hash for extension ${EXTENSION}"
-                exit 3
-            fi
-            ;;
-    esac
+    # Output resolved commit-hash and repository URL
+    printf "%-50s %s\n" ${FOUNDCOMMITHASH} ${PACKAGESURL}
+
+    if [[ "${MODE}" == "execute" ]]
+    then
+        # Create tag, but do not push it yet...
+        # If no hash was found, exit and avoid pushing only half of the repositories
+        if [[ "${FOUNDCOMMITHASH}" != "---" ]]
+        then
+            git -C ${WORKREPOSITORY} tag -f ${TAG} ${FOUNDCOMMITHASH}
+        else
+            echo "Could not determine matching tree hash for extension ${EXTENSION}"
+            exit 3
+        fi
+    fi
 
 done
 
