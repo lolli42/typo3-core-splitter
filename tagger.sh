@@ -17,7 +17,6 @@ BRANCH=""
 WORK=".out"
 REPOSITORY="."
 EXTENSIONDIRECTORY="typo3/sysext/"
-# PACKAGESURLTEMPLATE="/Users/olly/Development/typo3/git/work/packages/%s"
 PACKAGESURLTEMPLATE="git@github.com:TYPO3-CMS/%s.git"
 BASENAME=$(basename $0)
 

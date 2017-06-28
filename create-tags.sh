@@ -24,7 +24,7 @@ fi
 git -C ${REPOSITORY} rev-list HEAD -1 --quiet
 if [[ $? -ne 0 ]]
 then
-    echo "Directory '${REPOSITORY}' is not a GIt repository"
+    echo "Directory '${REPOSITORY}' is not a Git repository"
     exit 1
 fi
 
