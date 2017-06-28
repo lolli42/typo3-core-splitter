@@ -12,6 +12,11 @@
 # The TYPO3 project - inspiring people to share!
 
 #
+# OUTDATED! Has been merged to intercept.typo3.com
+#
+
+
+#
 # Main split and push function
 #
 function splitForBranch {
