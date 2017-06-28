@@ -13,18 +13,21 @@
 
 TAG=""
 COMMIT=""
+BRANCH=""
+WORK=".out"
 REPOSITORY="."
 EXTENSIONDIRECTORY="typo3/sysext/"
 # PACKAGESURLTEMPLATE="/Users/olly/Development/typo3/git/work/packages/%s"
-PACKAGESURLTEMPLATE="git@github.com:lolli42/%s.git"
+PACKAGESURLTEMPLATE="git@github.com:TYPO3-CMS/%s.git"
 BASENAME=$(basename $0)
 
 function showUsage {
     echo "${BASENAME} <mode> [options]"
-    echo "${BASENAME} show --commit <commit> [--repository <repository>]"
-    echo "${BASENAME} execute --commit <commit> --tag <tag> [--repository <repository>]"
+    echo "${BASENAME} show --commit <commit> [--branch <branch>] [--repository <repository>]"
+    echo "${BASENAME} execute --commit <commit> --tag <tag> [--branch <branch>] [--repository <repository>]"
     echo
     echo "--commit <value>      Git object to be processed in main repository"
+    echo "--branch <branch>     Branch name to work on in main repository"
     echo "--tag <value>         Name of tag to be created"
     echo "--repository <value>  URI of main repository"
     exit 1
@@ -38,12 +41,17 @@ fi
 MODE=$1
 shift
 
+# Process command line arguments
 while [[ $# -gt 1 ]]
 do
     key="$1"
     case ${key} in
         -c|--commit)
             COMMIT="$2"
+            shift
+            ;;
+        -b|--branch)
+            BRANCH="$2"
             shift
             ;;
         -t|--tag)
@@ -58,9 +66,10 @@ do
             showUsage
             ;;
     esac
-    shift # past argument or value
+    shift
 done
 
+# Validate required command line arguments per application mode
 case ${MODE} in
     show)
         if [[ "${COMMIT}" == "" ]]
@@ -79,6 +88,14 @@ case ${MODE} in
         ;;
 esac
 
+# Determine first branch of the given commit (if not provided as argument)
+if [[ "${BRANCH}" == "" ]]
+then
+    BRANCH=$(git -C ${REPOSITORY} branch -r --contains ${COMMIT} | grep -v origin/HEAD | head -n1 | sed 's/ //g' | sed 's#origin/##')
+fi
+PACKAGEBRANCH=$(echo ${BRANCH} | sed 's/TYPO3_//' | sed 's/-/./g')
+
+# Ensure main repository does exist and supports at least Git
 git -C ${REPOSITORY} rev-list HEAD -1 --quiet
 if [[ $? -ne 0 ]]
 then
@@ -86,38 +103,53 @@ then
     exit 1
 fi
 
+if [[ ! -d ${WORK} ]]
+then
+    mkdir -p ${WORK}
+fi
+
+# Select proper branch and state of main repository
+git -C ${REPOSITORY} fetch --quiet --all
+git -C ${REPOSITORY} checkout -b ${BRANCH} origin/${BRANCH} &> /dev/null
+git -C ${REPOSITORY} checkout --quiet ${BRANCH}
+git -C ${REPOSITORY} reset --quiet --hard origin/${BRANCH}
+
+# Change the internal field separator to newline character
+IFS=$'\n'
 
 # Fetch list of available extensions
-EXTENSIONS=$(ls ${REPOSITORY}/${EXTENSIONDIRECTORY})
-EXTENSIONS="saltedpasswords"
+EXTENSIONS=$(ls -1 ${REPOSITORY}/${EXTENSIONDIRECTORY})
 for EXTENSION in ${EXTENSIONS}
 do
+    # Change the internal field separator
     IFS=""
-    PACKAGESURL=$(printf ${PACKAGESURLTEMPLATE} ${EXTENSION})
 
-    # Assert remote package repositories are available
-    git -C ${REPOSITORY} remote remove package-${EXTENSION} &> /dev/null
-    git -C ${REPOSITORY} remote add package-${EXTENSION} ${PACKAGESURL} || exit 1
-    git -C ${REPOSITORY} fetch --quiet package-${EXTENSION} || exit 1
+    PACKAGESURL=$(printf ${PACKAGESURLTEMPLATE} ${EXTENSION})
+    WORKREPOSITORY=${WORK}/${EXTENSION}
+
+    if [[ ! -d ${WORKREPOSITORY} ]]
+    then
+        git clone --quiet ${PACKAGESURL} ${WORKREPOSITORY} || exit 1
+    else
+        git -C ${WORKREPOSITORY} fetch --quiet --all || exit 1
+        git -C ${WORKREPOSITORY} fetch --quiet --tags
+    fi
 
     FOUNDCOMMITHASH="---"
-    MAINCOMMITHASHES=$(git -C ${REPOSITORY} rev-list ${COMMIT} ${EXTENSIONDIRECTORY}${EXTENSION})
     MAINTREEHASHES=""
 
+    # Resolve tree-hashes of main repository
     while read MAINCOMMITHASH
     do
         MAINTREEHASH=$(git -C ${REPOSITORY} ls-tree ${MAINCOMMITHASH} ${EXTENSIONDIRECTORY}${EXTENSION} | awk '{print $3}')
         MAINTREEHASHES=${MAINTREEHASHES}$'\n'${MAINTREEHASH}
-    done <<< ${MAINCOMMITHASHES}
-
+    done <<< $(git -C ${REPOSITORY} rev-list ${COMMIT} ${EXTENSIONDIRECTORY}${EXTENSION})
 
     # Iterate over commit- & tree-hashes of package
     while read PACKAGEDATE
     do
         PACKAGECOMMITHASH=$(echo ${PACKAGEDATE} | awk '{print $2}')
         PACKAGETREEHASH=$(echo ${PACKAGEDATE} | awk '{print $3}')
-
-        # echo "${PACKAGECOMMITHASH} ${PACKAGETREEHASH}"
 
         # Iterate over commit-hashes of main (TYPO3.CMS) repository
         while read MAINTREEHASH
@@ -135,16 +167,18 @@ do
         then
             break
         fi
-    done <<< $(git -C ${REPOSITORY} rev-list --remotes=package-${EXTENSION} --pretty="commit+tree %H %T" | grep "^commit+tree")
+    done <<< $(git -C ${WORKREPOSITORY} rev-list --all --pretty="commit+tree %H %T" | grep "^commit+tree")
 
     case "${MODE}" in
         show)
             printf "%-50s %s\n" ${FOUNDCOMMITHASH} ${PACKAGESURL}
             ;;
         execute)
+            # Create tag, but do not push it yet...
+            # If no hash was found, exit and avoid pushing only half of the repositories
             if [[ "${FOUNDCOMMITHASH}" != "---" ]]
             then
-                git -C ${REPOSITORY} tag -f ${TAG} ${FOUNDCOMMITHASH}
+                git -C ${WORKREPOSITORY} tag -f ${TAG} ${FOUNDCOMMITHASH}
             else
                 echo "Could not determine matching tree hash for extension ${EXTENSION}"
                 exit 3
@@ -159,8 +193,12 @@ then
     exit 0
 fi
 
+# Change the internal field separator to newline character
+IFS=$'\n'
+
+# Push tags to remote repositories
 for EXTENSION in ${EXTENSIONS}
 do
-    # @todo Add signed tags
-    git -C ${REPOSITORY} push package-${EXTENSION} ${TAG}
+    WORKREPOSITORY=${WORK}/${EXTENSION}
+    git -C ${WORKREPOSITORY} push origin ${TAG}
 done

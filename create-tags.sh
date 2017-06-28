@@ -29,10 +29,10 @@ then
 fi
 
 
-TAGS=$(git -C ${REPOSITORY} tag -l | grep -E '^v?(7|8)\.\d+\.\d+')
+TAGS=$(git -C ${REPOSITORY} tag -l '8.*' 'v8.*')
 for TAG in ${TAGS}
 do
     NEWTAG=$(echo ${TAG} | sed -e 's/^v//' | sed -e 's/^/v/')
     echo "* creating tag ${TAG} -> ${NEWTAG}"
-    ${TAGGER} execute --commit ${TAG} --tag ${NEWTAG} --repository ${REPOSITORY}
+    ${TAGGER} show --commit ${TAG} --tag ${NEWTAG} --repository ${REPOSITORY}
 done
