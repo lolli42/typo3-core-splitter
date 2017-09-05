@@ -91,6 +91,11 @@ esac
 if [[ "${BRANCH}" == "" ]]
 then
     BRANCH=$(git -C ${REPOSITORY} branch -r --contains ${COMMIT} | grep -v origin/HEAD | head -n1 | sed 's/ //g' | sed 's#origin/##')
+	if [[ "${BRANCH}" == "" ]]
+	then
+		echo "Commit ${COMMIT} could not be found in any branch"
+		exit 1
+	fi
 fi
 PACKAGEBRANCH=$(echo ${BRANCH} | sed 's/TYPO3_//' | sed 's/-/./g')
 
