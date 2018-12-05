@@ -1,3 +1,7 @@
+# Obsolete
+
+This repository is OBSOLETE, functionality has been merged into intercept at https://bitbucket.typo3.com/projects/INT/repos/intercept/browse
+
 # Usage
 
 ## General
